@@ -1,0 +1,55 @@
+name: Package and Notify
+
+on:
+  push:
+    branches:
+      - produktiv  # Triggert nur bei Pushes auf den Default-Branch
+  pull_request:
+    branches:
+      - produktiv  # Triggert bei PR-Merges in den Default-Branch
+
+jobs:
+  build-and-notify:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Repository auschecken
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      # 2. ZIP-Datei erstellen
+      - name: Create ZIP Package
+        run: |
+          zip -r package.zip ./*
+
+      # 3. Release erstellen oder aktualisieren
+      - name: Create or Update Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ github.run_number }}
+          release_name: "Package Release v${{ github.run_number }}"
+          draft: false
+          prerelease: false
+
+      # 4. ZIP-Datei an Release anhängen
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: package.zip
+          asset_name: package.zip
+          asset_content_type: application/zip
+
+      # 5. Discord-Benachrichtigung
+      - name: Notify Discord
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          curl -H "Content-Type: application/json" \
+               -d '{"content": "Ein neues Package wurde veröffentlicht! Hier ist der Link zum Release: https://github.com/${{ github.repository }}/releases/tag/v${{ github.run_number }}"}' \
+               $DISCORD_WEBHOOK
