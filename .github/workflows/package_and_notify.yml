@@ -3,10 +3,14 @@ name: Package and Notify
 on:
   push:
     branches:
-      - produktiv  # Triggert nur bei Pushes auf den Default-Branch
+      - produktiv  # Triggert nur bei Pushes auf den Branch 'produktiv'
+    paths-ignore:
+      - '.github/workflows/**'  # Ignoriere Workflow-Dateien
+      - 'docs/**'               # Ignoriere Dokumentationsdateien
+      - '*.md'                  # Ignoriere Markdown-Dateien
   pull_request:
     branches:
-      - produktiv  # Triggert bei PR-Merges in den Default-Branch
+      - produktiv  # Triggert bei PR-Merges in den Branch 'produktiv'
 
 jobs:
   build-and-notify:
@@ -17,10 +21,18 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v3
 
-      # 2. ZIP-Datei erstellen
-      - name: Create ZIP Package
+      # 2. Release Package vorbereiten
+      - name: Prepare Release Package
         run: |
-          zip -r package.zip ./*
+          # Erstelle ein temporäres Verzeichnis für das Release-Package
+          mkdir release_package
+          
+          # Kopiere nur gewünschte Dateien in das Release-Package
+          rsync -av --exclude='.github/' --exclude='docs/' --exclude='*.md' ./ release_package/
+          
+          # Erstelle das ZIP-Archiv
+          cd release_package
+          zip -r ../package.zip .
 
       # 3. Release erstellen oder aktualisieren
       - name: Create or Update Release
@@ -45,11 +57,45 @@ jobs:
           asset_name: package.zip
           asset_content_type: application/zip
 
-      # 5. Discord-Benachrichtigung
-      - name: Notify Discord
+      # 5. Discord-Benachrichtigung mit interaktivem Button
+      - name: Notify Discord with Button
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          REPO: ${{ github.repository }}
+          TAG: v${{ github.run_number }}
         run: |
+          PACKAGE_URL="https://github.com/${REPO}/releases/download/${TAG}/package.zip"
+
+          # JSON-Daten für die Webhook-Nachricht mit einem interaktiven Button
+          PAYLOAD=$(cat <<EOF
+          {
+            "content": "Ein neues Package wurde veröffentlicht! 🚀",
+            "embeds": [
+              {
+                "title": "Neues Release verfügbar!",
+                "description": "Das Release kann hier heruntergeladen werden:",
+                "color": 5814783,
+                "url": "https://github.com/${REPO}/releases/tag/${TAG}"
+              }
+            ],
+            "components": [
+              {
+                "type": 1,
+                "components": [
+                  {
+                    "type": 2,
+                    "label": "Download Package",
+                    "style": 5,
+                    "url": "${PACKAGE_URL}"
+                  }
+                ]
+              }
+            ]
+          }
+EOF
+          )
+
+          # Webhook-Request an Discord senden
           curl -H "Content-Type: application/json" \
-               -d '{"content": "Ein neues Package wurde veröffentlicht! Hier ist der Link zum Release: https://github.com/${{ github.repository }}/releases/tag/v${{ github.run_number }}"}' \
-               $DISCORD_WEBHOOK
+               -d "${PAYLOAD}" \
+               "${DISCORD_WEBHOOK}"
