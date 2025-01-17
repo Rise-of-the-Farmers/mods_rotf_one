@@ -66,36 +66,8 @@ jobs:
         run: |
           PACKAGE_URL="https://github.com/${REPO}/releases/download/${TAG}/package.zip"
 
-          # JSON-Daten für die Webhook-Nachricht mit einem interaktiven Button
-          PAYLOAD=$(cat <<EOF
-          {
-            "content": "Ein neues Package wurde veröffentlicht! 🚀",
-            "embeds": [
-              {
-                "title": "Neues Release verfügbar!",
-                "description": "Das Release kann hier heruntergeladen werden:",
-                "color": 5814783,
-                "url": "https://github.com/${REPO}/releases/tag/${TAG}"
-              }
-            ],
-            "components": [
-              {
-                "type": 1,
-                "components": [
-                  {
-                    "type": 2,
-                    "label": "Download Package",
-                    "style": 5,
-                    "url": "${PACKAGE_URL}"
-                  }
-                ]
-              }
-            ]
-          }
-EOF
-          )
+          PAYLOAD="{\"content\": \"Ein neues Package wurde veröffentlicht! 🚀\", \"embeds\": [{\"title\": \"Neues Release verfügbar!\", \"description\": \"Das Release kann hier heruntergeladen werden:\", \"color\": 5814783, \"url\": \"https://github.com/${REPO}/releases/tag/${TAG}\"}], \"components\": [{\"type\": 1, \"components\": [{\"type\": 2, \"label\": \"Download Package\", \"style\": 5, \"url\": \"${PACKAGE_URL}\"}]}]}"
 
-          # Webhook-Request an Discord senden
           curl -H "Content-Type: application/json" \
                -d "${PAYLOAD}" \
                "${DISCORD_WEBHOOK}"
