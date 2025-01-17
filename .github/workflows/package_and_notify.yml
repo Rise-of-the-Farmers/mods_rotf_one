@@ -10,7 +10,7 @@ on:
 
 jobs:
   build-and-notify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
       # 1. Repository auschecken
@@ -30,7 +30,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: v${{ github.run_number }}
-          release_name: "Package Release v${{ github.run_number }}"
+          release_name: "Modveröffentlichung v${{ github.run_number }}"
           draft: false
           prerelease: false
 
