@@ -20,8 +20,16 @@ jobs:
       # 1. Repository auschecken
       - name: Checkout Repository
         uses: actions/checkout@v3
+        with:
+          lfs: true  # Aktiviert Git LFS für den Checkout
 
-      # 2. Release Package vorbereiten
+      # 2. Sicherstellen, dass LFS-Dateien verfügbar sind
+      - name: Fetch LFS Files
+        run: |
+          git lfs fetch --all
+          git lfs checkout
+
+      # 3. Release Package vorbereiten
       - name: Prepare Release Package
         run: |
           mkdir release_package
@@ -29,7 +37,7 @@ jobs:
           cd release_package
           zip -r ../package.zip .
 
-      # 3. Release erstellen oder aktualisieren
+      # 4. Release erstellen oder aktualisieren
       - name: Create or Update Release
         id: create_release
         uses: actions/create-release@v1
@@ -41,7 +49,7 @@ jobs:
           draft: false
           prerelease: false
 
-      # 4. ZIP-Datei an Release anhängen
+      # 5. ZIP-Datei an Release anhängen
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
         env:
@@ -52,8 +60,8 @@ jobs:
           asset_name: package.zip
           asset_content_type: application/zip
 
-      # 5. Discord-Benachrichtigung mit Button durch Bot
-      - name: Notify Discord with Bot
+      # 6. Discord-Benachrichtigung mit Changelog
+      - name: Notify Discord with Changelog
         env:
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
           DISCORD_CHANNEL_ID: ${{ secrets.DISCORD_CHANNEL_ID }}
@@ -61,13 +69,13 @@ jobs:
           TAG: v${{ github.run_number }}
         run: |
           PACKAGE_URL="https://github.com/${REPO}/releases/download/${TAG}/package.zip"
+          CHANGELOG=$(git log --oneline -n 10)
 
-          # JSON-Payload für den Button sicher generieren
           PAYLOAD=$(jq -n \
             --arg content "Ein neues Package wurde veröffentlicht! 🚀" \
             --arg title "Neues Release verfügbar!" \
             --arg description "Das Release kann hier heruntergeladen werden:" \
-            --arg color "5814783" \
+            --arg changelog "$CHANGELOG" \
             --arg url "https://github.com/${REPO}/releases/tag/${TAG}" \
             --arg button_url "${PACKAGE_URL}" \
             '{
@@ -75,8 +83,8 @@ jobs:
               embeds: [
                 {
                   title: $title,
-                  description: $description,
-                  color: ($color | tonumber),
+                  description: ($description + "\n\n**Changelog:**\n" + $changelog),
+                  color: 5814783,
                   url: $url
                 }
               ],
@@ -96,7 +104,6 @@ jobs:
             }'
           )
 
-          # Senden der Nachricht über den Discord Bot
           curl -X POST "https://discord.com/api/v10/channels/${DISCORD_CHANNEL_ID}/messages" \
             -H "Authorization: Bot ${DISCORD_BOT_TOKEN}" \
             -H "Content-Type: application/json" \
